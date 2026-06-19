@@ -119,6 +119,12 @@ gradlew build
 
 构建产物位于 `build/libs/` 目录。
 
+### CI/CD
+
+本项目已配置 GitHub Actions，每次 `push` 或 `pull_request` 到远程仓库时自动触发构建，构建产物（JAR 文件）会上传到 Actions 页面的 Artifacts 中。
+
+工作流文件：`.github/workflows/build.yml`
+
 ---
 
 ## 模组信息
