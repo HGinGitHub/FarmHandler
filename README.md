@@ -121,9 +121,19 @@ gradlew build
 
 ### CI/CD
 
-本项目已配置 GitHub Actions，每次 `push` 或 `pull_request` 到远程仓库时自动触发构建，构建产物（JAR 文件）会上传到 Actions 页面的 Artifacts 中。
+本项目已配置 GitHub Actions：
+
+- **构建**：每次 `push` 或 `pull_request` 自动执行 `./gradlew build`，产物上传至 Actions Artifacts
+- **发布**：推送 `v*.*.*` 格式的标签（如 `v1.1.0`）时，自动在 GitHub Releases 页面创建发行版，并附上 JAR 文件
 
 工作流文件：`.github/workflows/build.yml`
+
+**发布流程：**
+```bash
+# 确保版本号正确后，打标签并推送
+git tag v1.1.0
+git push origin v1.1.0
+```
 
 ---
 
