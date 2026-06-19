@@ -31,8 +31,19 @@
   - `refactor: xxx` — 重构
   - `build: xxx` — 构建/依赖变更
 
+## 发布流程
+
+- 完成功能开发并确认 `mod_version` 已递增后，打标签并推送以触发 GitHub Actions 自动发布：
+  1. 确保 `gradle.properties` 中 `mod_version` 与标签版本一致
+  2. 推送代码到远程：`git push`
+  3. 打标签：`git tag v{mod_version}`（如 `git tag v1.1.0`）
+  4. 推送标签：`git push origin v{mod_version}`
+- Actions 会自动构建 JAR 并在 Releases 页面创建发行版
+- **注意**：标签必须推送，仅推代码不会触发 Release
+
 ## 检查清单（每次改动后执行）
 
 - [ ] `mod_version` 是否已递增？
 - [ ] `README.md` 是否已同步更新？
 - [ ] 工作区是否已 git 提交？
+- [ ] 如需发布，是否已打标签并推送？
