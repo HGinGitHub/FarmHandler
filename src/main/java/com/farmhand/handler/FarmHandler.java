@@ -58,8 +58,8 @@ public class FarmHandler {
             return handleHoe(player, level, pos, stack, hand);
         }
 
-        // 优先级 2：手持种子 + 空耕地 → 连锁种植
-        if (isEmptyFarmland(state) && isSeedItem(stack)) {
+        // 优先级 2：手持种子 + 可种植表面 → 连锁种植
+        if (isSeedItem(stack) && isPlantableSurface(state, stack.getItem())) {
             return handlePlanting(player, level, pos, stack);
         }
 
@@ -133,8 +133,8 @@ public class FarmHandler {
                 if (planted >= TemplateMod.CONFIG.maxOperation) break;
                 if (!visited.add(pos)) continue;
 
-                // 必须是空耕地
-                if (!isEmptyFarmland(level.getBlockState(pos))) continue;
+                // 必须是可种植表面（耕地或灵魂沙）
+                if (!isPlantableSurface(level.getBlockState(pos), seedItem)) continue;
 
                 // 种子用完后从背包补充同种种子
                 if (currentStack.getCount() <= 0) {
@@ -160,6 +160,16 @@ public class FarmHandler {
 
     private static boolean isEmptyFarmland(BlockState state) {
         return state.is(Blocks.FARMLAND);
+    }
+
+    /**
+     * 判断方块是否为可种植表面
+     * 普通种子需要耕地，地狱疣需要灵魂沙
+     */
+    private static boolean isPlantableSurface(BlockState state, Item seedItem) {
+        if (state.is(Blocks.FARMLAND)) return true;
+        if (seedItem == Items.NETHER_WART && state.is(Blocks.SOUL_SAND)) return true;
+        return false;
     }
 
     /**
