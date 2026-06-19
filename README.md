@@ -135,20 +135,24 @@ gradlew build
 本项目使用 Fabric Loom 构建，源码结构：
 
 ```
+.opencode/
+└── instructions.md                    # 项目规则（AI 提示词）
 src/
 ├── main/
 │   ├── java/com/farmhand/
-│   │   ├── TemplateMod.java              # Mod 主入口（初始化配置）
+│   │   ├── TemplateMod.java           # Mod 主入口（初始化配置）
 │   │   ├── config/
-│   │   │   ├── FarmhandConfig.java       # 配置定义（Cloth Config）
-│   │   │   └── ModMenuIntegration.java   # ModMenu 集成入口
+│   │   │   └── FarmhandConfig.java    # 配置定义（Cloth Config）
 │   │   └── handler/
-│   │       └── FarmHandler.java          # 核心功能处理器
+│   │       └── FarmHandler.java       # 核心功能处理器
 │   └── resources/
-│       └── fabric.mod.json               # Mod 元数据
+│       └── fabric.mod.json            # Mod 元数据
 └── client/
-    ├── java/com/farmhand/client/
-    │   └── TemplateModClient.java        # 客户端入口
+    ├── java/com/farmhand/
+    │   ├── client/
+    │   │   └── TemplateModClient.java # 客户端入口
+    │   └── config/
+    │       └── ModMenuIntegration.java# ModMenu 集成入口
     └── resources/
 ```
 
