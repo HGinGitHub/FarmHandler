@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "farmhand",
+	"version": "${version}",
+	"name": "一键种植/连锁收获/自动锄地",
+	"description": "潜行时右键实现范围种植、连锁收获+自动补种、自动锄地",
+	"authors": [
+		"FarmHelper"
+	],
+	"contact": {},
+	"license": "CC0-1.0",
+	"icon": "assets/farmhand/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.farmhand.TemplateMod"
+		],
+		"client": [
+			"com.farmhand.client.TemplateModClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
