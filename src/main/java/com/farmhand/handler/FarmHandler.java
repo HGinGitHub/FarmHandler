@@ -21,8 +21,12 @@ import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.BlockHitResult;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 
 /**
  * 核心处理器：一键种植、连锁收获+自动补种、自动锄地
@@ -30,8 +34,8 @@ import java.util.Map;
  * Minecraft 26.1.2 — Mojang 官方映射
  */
 public class FarmHandler {
-    private static final int RADIUS = 4; // 通用扫描半径（翻地、收获用 9×9）
-    private static final int PLANT_RADIUS = 8; // 种植用更大的半径（17×17），确保覆盖整片田地
+    private static final int RADIUS = 4; // 锄地扫描半径（9×9）
+    private static final int MAX_OPERATION = 80; // 种植/收获单次操作上限
 
     public static void register() {
         UseBlockCallback.EVENT.register(FarmHandler::onUseBlock);
@@ -117,15 +121,26 @@ public class FarmHandler {
         if (seedBlock == null) return InteractionResult.PASS;
 
         int planted = 0;
+        Set<BlockPos> visited = new HashSet<>();
+        Queue<BlockPos> queue = new LinkedList<>();
+        queue.add(center);
         ItemStack currentStack = seedStack;
 
-        // 循环种植：当前种子用完后自动从背包补充同种种子
-        while (true) {
-            boolean plantedAny = false;
-            for (BlockPos pos : scanArea(level, center, PLANT_RADIUS)) {
-                BlockState state = level.getBlockState(pos);
-                if (!isEmptyFarmland(state)) continue;
-                if (currentStack.getCount() <= 0) break;
+        while (!queue.isEmpty() && planted < MAX_OPERATION) {
+            BlockPos current = queue.poll();
+
+            for (BlockPos pos : getNeighbors3x3(current)) {
+                if (planted >= MAX_OPERATION) break;
+                if (!visited.add(pos)) continue;
+
+                // 必须是空耕地
+                if (!isEmptyFarmland(level.getBlockState(pos))) continue;
+
+                // 种子用完后从背包补充同种种子
+                if (currentStack.getCount() <= 0) {
+                    currentStack = findSeedInInventory(player, seedItem);
+                    if (currentStack.isEmpty()) break;
+                }
 
                 BlockPos cropPos = pos.above();
                 if (!level.getBlockState(cropPos).isAir()) continue;
@@ -136,15 +151,7 @@ public class FarmHandler {
                 level.setBlock(cropPos, seedState, 3);
                 currentStack.shrink(1);
                 planted++;
-                plantedAny = true;
-            }
-
-            // 当前种子用完了，尝试从背包补充同种种子
-            if (currentStack.getCount() <= 0) {
-                currentStack = findSeedInInventory(player, seedItem);
-                if (currentStack.isEmpty()) break;
-            } else {
-                break; // 还有种子但无可种耕地，结束
+                queue.add(pos);
             }
         }
 
@@ -184,76 +191,109 @@ public class FarmHandler {
         Block centerBlock = centerState.getBlock();
         ItemStack heldStack = player.getItemInHand(hand);
 
-        // 特殊处理：甘蔗 / 竹子（破坏第二格及以上，保留根部，不补种）
-        if (centerBlock instanceof SugarCaneBlock) {
-            harvestSugarcaneLike(serverLevel, player, center, heldStack, centerBlock);
-            return InteractionResult.SUCCESS;
-        }
-        if (centerBlock instanceof BambooStalkBlock) {
-            harvestBambooLike(serverLevel, player, center, heldStack);
-            return InteractionResult.SUCCESS;
-        }
+        boolean isSugarcaneHarvest = centerBlock instanceof SugarCaneBlock;
+        boolean isBambooHarvest = centerBlock instanceof BambooStalkBlock;
 
-        // 普通作物：扫描区域内同种成熟作物
-        List<BlockPos> targets = new ArrayList<>();
-        for (BlockPos pos : scanArea(level, center, PLANT_RADIUS)) {
-            BlockState state = level.getBlockState(pos);
-            if (state.getBlock() == centerBlock && isMatureCrop(state)) {
-                targets.add(pos);
-            }
-        }
+        int harvested = 0;
+        Set<BlockPos> visited = new HashSet<>();
+        Queue<BlockPos> queue = new LinkedList<>();
+        queue.add(center);
 
-        for (BlockPos target : targets) {
-            BlockState targetState = level.getBlockState(target);
-            Block targetBlock = targetState.getBlock();
+        while (!queue.isEmpty() && harvested < MAX_OPERATION) {
+            BlockPos current = queue.poll();
 
-            // --- 甜浆果：重置为 age=1（保留植株，收获浆果）---
-            if (targetBlock instanceof SweetBerryBushBlock) {
-                int age = getAge(targetState);
-                if (age >= 3) {
-                    Block.dropResources(targetState, serverLevel, target, null, player, heldStack);
-                    level.setBlock(target, targetState.setValue(getAgeProperty(targetState), 1), 3);
-                }
-                continue;
-            }
+            for (BlockPos pos : getNeighbors3x3(current)) {
+                if (harvested >= MAX_OPERATION) break;
+                if (!visited.add(pos)) continue;
 
-            // --- 发光浆果：设置 BERRIES=false ---
-            if (isCaveVinesWithBerries(targetState)) {
-                Block.dropResources(targetState, serverLevel, target, null, player, heldStack);
-                BooleanProperty berriesProp = findBerriesProperty(targetState);
-                if (berriesProp != null) {
-                    level.setBlock(target, targetState.setValue(berriesProp, false), 3);
+                BlockState targetState = level.getBlockState(pos);
+                Block targetBlock = targetState.getBlock();
+
+                // === 判断是否与原点属同一种可收获作物 ===
+                boolean matches;
+                if (isSugarcaneHarvest) {
+                    matches = targetBlock instanceof SugarCaneBlock;
+                } else if (isBambooHarvest) {
+                    matches = targetBlock instanceof BambooStalkBlock;
                 } else {
-                    level.destroyBlock(target, false, player);
+                    matches = targetBlock == centerBlock && isMatureCrop(targetState);
                 }
-                continue;
-            }
+                if (!matches) continue;
 
-            // --- 西瓜 / 南瓜：破坏果实 ---
-            if (targetState.is(Blocks.MELON) || targetBlock instanceof PumpkinBlock) {
-                Block.dropResources(targetState, serverLevel, target, null, player, heldStack);
-                level.destroyBlock(target, false, player);
-                continue;
-            }
+                // --- 甘蔗：破坏第二格及以上，保留根部 ---
+                if (targetBlock instanceof SugarCaneBlock) {
+                    harvestSugarcaneLike(serverLevel, player, pos, heldStack, targetBlock);
+                    harvested++;
+                    queue.add(pos);
+                    continue;
+                }
 
-            // --- 可可豆：收获后检测周围丛林原木重新补种 ---
-            if (targetBlock instanceof CocoaBlock) {
-                Block.dropResources(targetState, serverLevel, target, null, player, heldStack);
-                level.destroyBlock(target, false, player);
-                tryReplantCocoa(serverLevel, player, target);
-                continue;
-            }
+                // --- 竹子：破坏第二格及以上，保留根部 ---
+                if (targetBlock instanceof BambooStalkBlock) {
+                    harvestBambooLike(serverLevel, player, pos, heldStack);
+                    harvested++;
+                    queue.add(pos);
+                    continue;
+                }
 
-            // --- 标准作物（小麦/胡萝卜/马铃薯/甜菜根/下界疣）：收获 + 补种 ---
-            Block.dropResources(targetState, serverLevel, target, null, player, heldStack);
-            level.destroyBlock(target, false, player);
-            Item seedItem = getSeedForCrop(targetBlock);
-            if (seedItem != null) {
-                tryReplantStandard(serverLevel, player, target, targetBlock, seedItem);
+                // --- 甜浆果：重置为 age=1（保留植株，收获浆果）---
+                if (targetBlock instanceof SweetBerryBushBlock) {
+                    int age = getAge(targetState);
+                    if (age >= 3) {
+                        Block.dropResources(targetState, serverLevel, pos, null, player, heldStack);
+                        level.setBlock(pos, targetState.setValue(getAgeProperty(targetState), 1), 3);
+                        harvested++;
+                        queue.add(pos);
+                    }
+                    continue;
+                }
+
+                // --- 发光浆果：设置 BERRIES=false ---
+                if (isCaveVinesWithBerries(targetState)) {
+                    Block.dropResources(targetState, serverLevel, pos, null, player, heldStack);
+                    BooleanProperty berriesProp = findBerriesProperty(targetState);
+                    if (berriesProp != null) {
+                        level.setBlock(pos, targetState.setValue(berriesProp, false), 3);
+                    } else {
+                        level.destroyBlock(pos, false, player);
+                    }
+                    harvested++;
+                    queue.add(pos);
+                    continue;
+                }
+
+                // --- 西瓜 / 南瓜：破坏果实 ---
+                if (targetState.is(Blocks.MELON) || targetBlock instanceof PumpkinBlock) {
+                    Block.dropResources(targetState, serverLevel, pos, null, player, heldStack);
+                    level.destroyBlock(pos, false, player);
+                    harvested++;
+                    queue.add(pos);
+                    continue;
+                }
+
+                // --- 可可豆：收获后检测周围丛林原木重新补种 ---
+                if (targetBlock instanceof CocoaBlock) {
+                    Block.dropResources(targetState, serverLevel, pos, null, player, heldStack);
+                    level.destroyBlock(pos, false, player);
+                    tryReplantCocoa(serverLevel, player, pos);
+                    harvested++;
+                    queue.add(pos);
+                    continue;
+                }
+
+                // --- 标准作物（小麦/胡萝卜/马铃薯/甜菜根/下界疣）：收获 + 补种 ---
+                Block.dropResources(targetState, serverLevel, pos, null, player, heldStack);
+                level.destroyBlock(pos, false, player);
+                Item seedItem = getSeedForCrop(targetBlock);
+                if (seedItem != null) {
+                    tryReplantStandard(serverLevel, player, pos, targetBlock, seedItem);
+                }
+                harvested++;
+                queue.add(pos);
             }
         }
 
-        return InteractionResult.SUCCESS;
+        return harvested > 0 ? InteractionResult.SUCCESS : InteractionResult.PASS;
     }
 
     /**
@@ -434,6 +474,19 @@ public class FarmHandler {
     }
 
     // ==================== 通用工具方法 ====================
+
+    /**
+     * 获取以指定方块为中心的 3×3 水平区域（包含自身）
+     */
+    private static List<BlockPos> getNeighbors3x3(BlockPos center) {
+        List<BlockPos> results = new ArrayList<>(9);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                results.add(center.offset(dx, 0, dz));
+            }
+        }
+        return results;
+    }
 
     /**
      * 扫描指定半径的水平区域（固定 Y 层）
