@@ -33,12 +33,12 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// Cloth Config (配置 GUI)
-	modApi("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+	implementation("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
 		exclude(group: "net.fabricmc.fabric-api")
 	}
 
 	// Mod Menu (编译时依赖，可选)
-	modCompileOnly("com.terraformersmc:modmenu:${project.modmenu_version}")
+	compileOnly("com.terraformersmc:modmenu:${project.modmenu_version}")
 }
 
 processResources {
