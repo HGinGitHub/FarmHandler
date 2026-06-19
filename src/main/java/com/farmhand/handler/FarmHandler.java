@@ -1,5 +1,6 @@
 package com.farmhand.handler;
 
+import com.farmhand.TemplateMod;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -35,7 +36,6 @@ import java.util.Set;
  */
 public class FarmHandler {
     private static final int RADIUS = 4; // 锄地扫描半径（9×9）
-    private static final int MAX_OPERATION = 80; // 种植/收获单次操作上限
 
     public static void register() {
         UseBlockCallback.EVENT.register(FarmHandler::onUseBlock);
@@ -126,11 +126,11 @@ public class FarmHandler {
         queue.add(center);
         ItemStack currentStack = seedStack;
 
-        while (!queue.isEmpty() && planted < MAX_OPERATION) {
+        while (!queue.isEmpty() && planted < TemplateMod.CONFIG.maxOperation) {
             BlockPos current = queue.poll();
 
             for (BlockPos pos : getNeighbors3x3(current)) {
-                if (planted >= MAX_OPERATION) break;
+                if (planted >= TemplateMod.CONFIG.maxOperation) break;
                 if (!visited.add(pos)) continue;
 
                 // 必须是空耕地
@@ -199,11 +199,11 @@ public class FarmHandler {
         Queue<BlockPos> queue = new LinkedList<>();
         queue.add(center);
 
-        while (!queue.isEmpty() && harvested < MAX_OPERATION) {
+        while (!queue.isEmpty() && harvested < TemplateMod.CONFIG.maxOperation) {
             BlockPos current = queue.poll();
 
             for (BlockPos pos : getNeighbors3x3(current)) {
-                if (harvested >= MAX_OPERATION) break;
+                if (harvested >= TemplateMod.CONFIG.maxOperation) break;
                 if (!visited.add(pos)) continue;
 
                 BlockState targetState = level.getBlockState(pos);
@@ -282,8 +282,16 @@ public class FarmHandler {
                 }
 
                 // --- 标准作物（小麦/胡萝卜/马铃薯/甜菜根/下界疣）：收获 + 补种 ---
-                Block.dropResources(targetState, serverLevel, pos, null, player, heldStack);
+                // 先计算掉落物，再破坏方块
+                List<ItemStack> drops = Block.getDrops(targetState, serverLevel, pos, null, player, heldStack);
                 level.destroyBlock(pos, false, player);
+                // 掉落物优先进入背包，背包满则变为掉落物
+                for (ItemStack drop : drops) {
+                    if (drop.isEmpty()) continue;
+                    if (!player.addItem(drop)) {
+                        Block.popResource(serverLevel, pos, drop);
+                    }
+                }
                 Item seedItem = getSeedForCrop(targetBlock);
                 if (seedItem != null) {
                     tryReplantStandard(serverLevel, player, pos, targetBlock, seedItem);

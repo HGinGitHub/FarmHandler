@@ -17,6 +17,9 @@
 		],
 		"client": [
 			"com.farmhand.client.TemplateModClient"
+		],
+		"modmenu": [
+			"com.farmhand.config.ModMenuIntegration"
 		]
 	},
 	"depends": {
