@@ -16,7 +16,7 @@
 |---|---|---|---|---|---|
 | 🧑‍🌾 **自动锄地** | 潜行 + 右键（手持锄头） | 9×9 矩形 | 无 | 将周围可耕方块统一变为耕地，消耗耐久 |
 | 🌱 **连锁种植** | 潜行 + 右键（手持种子） | 3×3 BFS 扩散 | **80** | 沿空耕地连通域批量种植，种子自动从背包补充 |
-| 🌾 **连锁收获+补种** | 潜行 + 右键（对准成熟作物） | 3×3 BFS 扩散 | **80** | 沿同种成熟作物连通域收获并自动补种 |
+| 🌾 **连锁收获+补种** | 潜行 + 右键（对准成熟作物） | 3×3 BFS 扩散 | **80**（可配置） | 沿同种成熟作物连通域收获并自动补种，标准作物掉落物自动进背包 |
 
 ---
 
@@ -42,9 +42,10 @@
 1. **潜行** + 右键点击**成熟作物**
 2. 从点击位置开始，以 **3×3 逐层扩散（BFS）** 方式沿**同种成熟作物**连通域批量收获
 3. 收获后自动从背包搜索种子进行补种（可可豆会在周围丛林原木上补种）
-4. **单次上限 80 格**，达到上限后即使还有连通作物也会停止
-4. 支持的特殊作物：
-   - **标准作物**：小麦、胡萝卜、马铃薯、甜菜根、下界疣 → 收获 + 补种
+4. **标准作物**（小麦、胡萝卜、马铃薯、甜菜根、下界疣）掉落物**优先进入背包**，背包满时掉落在地
+5. **单次上限 80 格**（可在 Mod 菜单中配置），达到上限后即使还有连通作物也会停止
+6. 支持的特殊作物：
+   - **标准作物**：小麦、胡萝卜、马铃薯、甜菜根、下界疣 → 收获 + 补种 + **自动进背包**
    - **可可豆** → 收获 + 在周围丛林原木自动补种
    - **甜浆果** → 收获浆果，植株保留为 age=1
    - **发光浆果** → 收获浆果，vines 保留
@@ -79,14 +80,30 @@
 - **Minecraft**: 26.1.2（对应 1.21.5+）
 - **Mod Loader**: Fabric Loader ≥0.19.3
 - **Java**: ≥25
-- **依赖**: Fabric API（任意兼容版本）
+- **必选依赖**: [Fabric API](https://modrinth.com/mod/fabric-api)（任意兼容版本）
+- **可选依赖**:
+  - [Cloth Config API](https://modrinth.com/mod/cloth-config) — 提供配置界面
+  - [Mod Menu](https://modrinth.com/mod/modmenu) — 在 Mod 列表中点击配置按钮
 
 ### 步骤
 
 1. 安装 [Fabric Loader](https://fabricmc.net/use/)
 2. 下载 [Fabric API](https://modrinth.com/mod/fabric-api) 放入 `.minecraft/mods/`
 3. 下载 Farmhand 的 JAR 文件放入 `.minecraft/mods/`
-4. 启动游戏
+4. （可选）安装 Cloth Config API 和 Mod Menu 以获得可视化配置界面
+5. 启动游戏
+
+---
+
+## 配置
+
+安装 **Mod Menu** + **Cloth Config API** 后，可在游戏内 Mod 列表中找到 Farmhand，点击**配置**按钮打开设置界面：
+
+| 选项 | 默认值 | 范围 | 说明 |
+|---|---|---|---|
+| 单次操作上限 (`maxOperation`) | 80 | 1~500 | 单次连锁种植或收获的最大方块数 |
+
+也可直接编辑 `.minecraft/config/farmhand.json` 文件。
 
 ---
 
@@ -121,13 +138,17 @@ gradlew build
 src/
 ├── main/
 │   ├── java/com/farmhand/
-│   │   ├── TemplateMod.java          # Mod 主入口
-│   │   └── handler/FarmHandler.java  # 核心功能处理器
+│   │   ├── TemplateMod.java              # Mod 主入口（初始化配置）
+│   │   ├── config/
+│   │   │   ├── FarmhandConfig.java       # 配置定义（Cloth Config）
+│   │   │   └── ModMenuIntegration.java   # ModMenu 集成入口
+│   │   └── handler/
+│   │       └── FarmHandler.java          # 核心功能处理器
 │   └── resources/
-│       └── fabric.mod.json           # Mod 元数据
+│       └── fabric.mod.json               # Mod 元数据
 └── client/
     ├── java/com/farmhand/client/
-    │   └── TemplateModClient.java    # 客户端入口
+    │   └── TemplateModClient.java        # 客户端入口
     └── resources/
 ```
 
